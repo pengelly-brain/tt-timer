@@ -1,0 +1,16 @@
+{
+  "name": "Beach Sprint TT Timer",
+  "short_name": "TT Timer",
+  "description": "Hand timing for a rowing time trial - start and stop crews, stroke rate, results and CSV.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#EDF1F3",
+  "theme_color": "#EDF1F3",
+  "icons": [
+    { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

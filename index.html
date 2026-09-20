@@ -1,0 +1,1029 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="TT Timer">
+<meta name="theme-color" content="#EDF1F3">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./icon-192.png">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<style>
+  html,body{margin:0;padding:0}
+  :root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+  img{max-width:100%}
+  [hidden]{display:none!important}
+</style>
+<title>Beach Sprint TT Timer</title>
+<style>
+  /* Committed light scheme — stays light even on a phone set to dark mode.
+     High contrast throughout for reading in sun on the bank. */
+  :root{
+    color-scheme:light;
+    --bg:#EDF1F3;
+    --card:#FFFFFF;
+    --ink:#0C1317;
+    --ink-dim:#54646D;
+    --ink-faint:#7E8D96;
+    --line:#C8D4DA;
+    --line-soft:#DDE5E9;
+    --go:#0A7C3E;
+    --go-deep:#065C2C;
+    --stop:#D97400;
+    --stop-deep:#A85A00;
+    --sr:#0D5E79;
+    --sr-deep:#09475C;
+    --warn:#C0341B;
+    --desk:#D9E1E6;
+    --bezel:#171E22;
+    --mono:ui-monospace,"SF Mono",SFMono-Regular,"Roboto Mono",Menlo,Consolas,monospace;
+    --ui:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    --srbar:96px;
+  }
+
+  html{box-sizing:border-box;height:100%;background:var(--bg)}
+  body{
+    height:100%;margin:0;background:var(--bg);color:var(--ink);
+    font-family:var(--ui);font-size:16px;line-height:1.2;
+    overscroll-behavior-y:none;
+    -webkit-user-select:none;user-select:none;
+    -webkit-tap-highlight-color:transparent;
+    -webkit-text-size-adjust:100%;
+  }
+  button{font:inherit;color:inherit;margin:0;border:0;background:none;cursor:pointer;touch-action:manipulation;text-align:left}
+  input,textarea{font:inherit;color:inherit;-webkit-user-select:text;user-select:text}
+  :focus-visible{outline:3px solid var(--sr);outline-offset:2px}
+
+  /* ---------------- device shell ---------------- */
+  .stage{height:100%;display:flex;flex-direction:column;box-sizing:border-box}
+  .device{flex:1 1 auto;min-height:0}
+  .screen{position:relative;height:100%;overflow:hidden;background:var(--bg)}
+  .stage__cap{display:none}
+
+  .view{position:absolute;inset:0;display:flex;flex-direction:column}
+  .view[hidden]{display:none!important}
+
+  /* ---------------- shared header ---------------- */
+  .hdr{
+    flex:0 0 auto;z-index:30;
+    display:flex;align-items:center;gap:10px;
+    padding:8px 12px;min-height:56px;
+    background:var(--bg);border-bottom:1px solid var(--line);
+  }
+  .hdr__btn{
+    flex:0 0 auto;min-width:56px;min-height:46px;padding:0 12px;
+    border-radius:11px;border:1.5px solid var(--line);background:var(--card);
+    font-size:13px;font-weight:800;letter-spacing:.07em;color:var(--ink-dim);
+    text-align:center;display:flex;align-items:center;justify-content:center;
+  }
+  .hdr__btn.press{filter:brightness(.94)}
+  .hdr__btn[disabled]{opacity:.34}
+  .hdr__title{flex:1 1 auto;min-width:0;font-size:17px;font-weight:800;letter-spacing:.01em}
+  .hdr__title small{display:block;margin-top:3px;font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-faint)}
+
+  .status{flex:1 1 auto;min-width:0}
+  .status__main{font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .status__main b{font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:700}
+  .status__sub{margin-top:3px;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-faint);display:flex;align-items:center;gap:5px}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--ink-faint);flex:0 0 auto}
+  .dot[data-s="on"]{background:var(--go)}
+  .dot[data-s="no"]{background:var(--warn)}
+
+  #undoBtn[data-armed="1"]{background:var(--warn);border-color:var(--warn);color:#fff;letter-spacing:.01em;font-size:12px;white-space:pre}
+
+  /* ---------------- scrolling body ---------------- */
+  .scroll{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding-bottom:18px}
+  .band[hidden]{display:none}
+  .band__h{margin:0;padding:15px 14px 7px;font-size:10.5px;font-weight:800;letter-spacing:.17em;text-transform:uppercase;color:var(--ink-faint)}
+  .band__h b{font-family:var(--mono);font-weight:800;opacity:.8}
+
+  /* ---------------- crew node, four race states ---------------- */
+  .crew{display:flex;align-items:center;width:100%;box-sizing:border-box}
+  .crew__rank{flex:0 0 auto;font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:700;color:var(--ink-faint)}
+  .crew__code{flex:0 0 auto;font-weight:850;font-variant-numeric:tabular-nums}
+  .crew__time{flex:1 1 auto;text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
+  .crew__pill{flex:0 0 auto;display:flex;align-items:center;justify-content:center;font-weight:850;letter-spacing:.09em}
+
+  .crew.is-next{
+    height:96px;padding:0 16px;gap:14px;background:var(--go);color:#fff;
+    border-radius:14px;margin:0 12px 10px;box-shadow:0 3px 0 var(--go-deep);width:calc(100% - 24px);
+  }
+  .crew.is-next .crew__rank{display:none}
+  .crew.is-next .crew__code{font-size:30px}
+  .crew.is-next .crew__time{font-size:12px;font-family:var(--ui);font-weight:800;letter-spacing:.15em;opacity:.8}
+  .crew.is-next .crew__pill{width:118px;height:62px;border-radius:11px;background:rgba(255,255,255,.17);border:2px solid rgba(255,255,255,.55);font-size:19px;color:#fff}
+  .crew.is-next.press{transform:translateY(3px);box-shadow:0 0 0 var(--go-deep);filter:brightness(1.07)}
+  .crew.is-next[disabled]{background:var(--card);color:var(--ink-faint);box-shadow:none;border:1.5px solid var(--line)}
+  .crew.is-next[disabled] .crew__pill{display:none}
+  .crew.is-next[disabled] .crew__code{font-size:19px;letter-spacing:.08em}
+
+  .crew.is-run{
+    height:88px;padding:0 14px 0 0;gap:12px;background:var(--card);color:var(--ink);
+    border-radius:14px;margin:0 12px 10px;border:1.5px solid var(--line-soft);
+    border-left:7px solid var(--stop);box-shadow:0 1px 2px rgba(12,19,23,.07);width:calc(100% - 24px);
+  }
+  .crew.is-run .crew__rank{display:none}
+  .crew.is-run .crew__code{padding-left:14px;font-size:21px;min-width:74px}
+  .crew.is-run .crew__time{font-size:33px;font-weight:600;letter-spacing:-.015em}
+  .crew.is-run .crew__pill{width:104px;height:60px;border-radius:11px;background:var(--stop);color:#fff;font-size:18px;box-shadow:0 2px 0 var(--stop-deep)}
+  .crew.is-run.press{filter:brightness(.97)}
+  .crew.is-run.press .crew__pill{transform:translateY(2px);box-shadow:0 0 0 var(--stop-deep)}
+
+  .crew.is-wait{height:46px;padding:0 16px;gap:12px;border-bottom:1px solid var(--line-soft)}
+  .crew.is-wait .crew__rank{font-size:12px;min-width:26px}
+  .crew.is-wait .crew__code{font-size:16px;font-weight:700;color:var(--ink-dim)}
+  .crew.is-wait .crew__time,.crew.is-wait .crew__pill{display:none}
+
+  .crew.is-done{height:48px;padding:0 16px;gap:12px;border-bottom:1px solid var(--line-soft)}
+  .crew.is-done .crew__rank{min-width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--ink);color:var(--card);font-size:12.5px}
+  .crew.is-done:first-child .crew__rank{background:var(--go)}
+  .crew.is-done .crew__code{font-size:16px;font-weight:800}
+  .crew.is-done .crew__time{font-size:18px;color:var(--ink-dim)}
+  .crew.is-done .crew__pill{display:none}
+
+  #raceScroll.locked .crew{pointer-events:none}
+  #raceScroll.locked .crew.is-next,#raceScroll.locked .crew.is-run{opacity:.55}
+
+  /* ---------------- toast ---------------- */
+  .toast{
+    position:absolute;left:12px;right:12px;z-index:50;bottom:calc(var(--srbar) + 8px);
+    padding:11px 14px;border-radius:11px;background:var(--ink);color:#fff;
+    font-size:14px;font-weight:700;text-align:center;font-variant-numeric:tabular-nums;
+    opacity:0;transform:translateY(6px);transition:opacity .15s,transform .15s;pointer-events:none;
+  }
+  .toast[data-show="1"]{opacity:1;transform:none}
+
+  /* ---------------- stroke rate bar ---------------- */
+  .srbar{
+    flex:0 0 auto;z-index:40;display:flex;align-items:stretch;gap:10px;padding:10px 12px;
+    background:var(--card);border-top:1.5px solid var(--line);box-shadow:0 -4px 14px rgba(12,19,23,.09);
+  }
+  .srout{flex:0 0 auto;width:132px;display:flex;flex-direction:column;justify-content:center;padding:0 2px}
+  .srout__val{display:flex;align-items:baseline;gap:5px;font-family:var(--mono);font-variant-numeric:tabular-nums}
+  .srout__val span{font-size:36px;font-weight:650;line-height:1;color:var(--sr);letter-spacing:-.02em}
+  .srout__val i{font-style:normal;font-family:var(--ui);font-size:12px;font-weight:800;letter-spacing:.1em;color:var(--ink-faint)}
+  .srout__sub{margin-top:5px;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-faint);font-variant-numeric:tabular-nums}
+  .srout[data-reject="1"] .srout__sub{color:var(--warn)}
+  #srPad{
+    flex:1 1 auto;height:76px;border-radius:13px;background:var(--sr);color:#fff;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+    box-shadow:0 3px 0 var(--sr-deep);
+  }
+  #srPad .p1{font-size:21px;font-weight:850;letter-spacing:.09em}
+  #srPad .p2{font-size:10.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;opacity:.78}
+  #srPad.press{transform:translateY(3px);box-shadow:0 0 0 var(--sr-deep);filter:brightness(1.1)}
+
+  /* ---------------- setup ---------------- */
+  .banner{margin:12px;padding:12px 14px;border-radius:12px;background:#FBEFE4;border:1.5px solid #E8C79F;font-size:13.5px;font-weight:650;line-height:1.35;color:#6A3F11}
+  .banner b{display:block;margin-bottom:3px;font-size:11px;letter-spacing:.1em;text-transform:uppercase}
+
+  .srow{display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--line-soft)}
+  .srow__n{flex:0 0 auto;width:26px;text-align:right;font-family:var(--mono);font-size:12.5px;font-weight:700;color:var(--ink-faint);font-variant-numeric:tabular-nums}
+  .srow__code{
+    flex:1 1 auto;min-width:0;height:48px;padding:0 12px;
+    border:1.5px solid var(--line);border-radius:10px;background:var(--card);
+    font-size:18px;font-weight:800;letter-spacing:.03em;font-variant-numeric:tabular-nums;
+  }
+  .srow__code:disabled{background:#F2F5F6;color:var(--ink-faint);border-style:dashed}
+  .sbtn{flex:0 0 auto;width:46px;height:48px;border-radius:10px;border:1.5px solid var(--line);background:var(--card);display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:800;color:var(--ink-dim)}
+  .sbtn:disabled{opacity:.28}
+  .sbtn--x{color:var(--warn);border-color:#E7C3BC}
+  .srow__lock{flex:0 0 auto;font-size:11px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-faint);padding-right:6px}
+
+  .setup__tools{display:flex;gap:8px;padding:12px}
+  .tool{
+    flex:1 1 0;min-height:52px;border-radius:12px;border:1.5px solid var(--line);background:var(--card);
+    display:flex;align-items:center;justify-content:center;gap:7px;
+    font-size:14px;font-weight:800;letter-spacing:.04em;color:var(--ink-dim);
+  }
+  .tool.press{filter:brightness(.95)}
+  .paste{padding:0 12px 12px}
+  .paste textarea{
+    width:100%;box-sizing:border-box;height:150px;padding:11px 12px;
+    border:1.5px solid var(--line);border-radius:12px;background:var(--card);
+    font-family:var(--mono);font-size:15px;line-height:1.45;resize:none;
+  }
+  .paste__hint{padding:8px 2px 10px;font-size:12px;color:var(--ink-faint);line-height:1.4}
+
+  .footbar{flex:0 0 auto;display:flex;gap:10px;padding:10px 12px;background:var(--card);border-top:1.5px solid var(--line);box-shadow:0 -4px 14px rgba(12,19,23,.09)}
+  .bigbtn{
+    flex:1 1 0;height:72px;border-radius:13px;background:var(--go);color:#fff;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+    box-shadow:0 3px 0 var(--go-deep);
+  }
+  .bigbtn .b1{font-size:19px;font-weight:850;letter-spacing:.08em}
+  .bigbtn .b2{font-size:10.5px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;opacity:.8}
+  .bigbtn.press{transform:translateY(3px);box-shadow:0 0 0 var(--go-deep);filter:brightness(1.07)}
+  .bigbtn--alt{background:var(--sr);box-shadow:0 3px 0 var(--sr-deep)}
+  .bigbtn--alt.press{box-shadow:0 0 0 var(--sr-deep)}
+  .bigbtn[disabled]{background:#DDE5E9;color:var(--ink-faint);box-shadow:none}
+
+  /* ---------------- results ---------------- */
+  .res{display:flex;align-items:center;gap:12px;padding:9px 14px;border-bottom:1px solid var(--line-soft)}
+  .res__p{flex:0 0 auto;min-width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--ink);color:var(--card);font-size:13px;font-weight:800;font-variant-numeric:tabular-nums}
+  .res:first-child .res__p{background:var(--go)}
+  .res--open .res__p{background:var(--stop)}
+  .res--dns .res__p{background:var(--line);color:var(--ink-faint)}
+  .res__b{flex:1 1 auto;min-width:0}
+  .res__code{font-size:16.5px;font-weight:850;font-variant-numeric:tabular-nums}
+  .res__clock{margin-top:3px;font-family:var(--mono);font-size:11.5px;color:var(--ink-faint);font-variant-numeric:tabular-nums}
+  .res__e{flex:0 0 auto;font-family:var(--mono);font-size:21px;font-weight:600;font-variant-numeric:tabular-nums}
+  .res--open .res__e{color:var(--stop)}
+  .res--dns .res__e{color:var(--ink-faint);font-size:14px}
+
+  .empty{padding:44px 24px;text-align:center;color:var(--ink-faint);font-size:14px;line-height:1.5}
+
+  .csvout{margin:12px;padding:11px;border:1.5px solid var(--line);border-radius:12px;background:var(--card)}
+  .csvout textarea{width:100%;box-sizing:border-box;height:130px;border:0;background:none;font-family:var(--mono);font-size:11.5px;line-height:1.45;resize:none}
+
+  /* ---------------- menu sheet ---------------- */
+  .scrim{position:absolute;inset:0;z-index:60;background:rgba(12,19,23,.45)}
+  .scrim[hidden]{display:none!important}
+  .sheet{position:absolute;left:0;right:0;bottom:0;z-index:61;background:var(--card);border-radius:18px 18px 0 0;padding:8px 12px 16px;box-shadow:0 -10px 34px rgba(12,19,23,.22)}
+  .sheet[hidden]{display:none!important}
+  .sheet__grip{width:40px;height:4px;border-radius:2px;background:var(--line);margin:6px auto 10px}
+  .mitem{
+    display:flex;align-items:center;gap:12px;width:100%;min-height:62px;padding:0 14px;
+    border-radius:12px;border:1.5px solid var(--line);background:var(--card);margin-bottom:8px;
+    font-size:16px;font-weight:750;
+  }
+  .mitem small{display:block;margin-top:2px;font-size:11.5px;font-weight:600;color:var(--ink-faint);letter-spacing:0}
+  .mitem.press{filter:brightness(.95)}
+  .mitem--danger{color:var(--warn);border-color:#E7C3BC}
+  .mitem--danger[data-armed="1"]{background:var(--warn);color:#fff;border-color:var(--warn)}
+  .mitem--danger[data-armed="1"] small{color:rgba(255,255,255,.82)}
+
+  @media (max-width:370px){
+    .srout{width:112px}
+    .srout__val span{font-size:31px}
+    .crew.is-run .crew__pill{width:92px}
+    .crew.is-next .crew__pill{width:104px}
+  }
+
+  /* ---------------- desktop: to-scale S22 Ultra mock-up ---------------- */
+  @media (min-width:520px) and (min-height:560px){
+    html,body{height:auto}
+    body{background:var(--desk)}
+    .stage{height:auto;min-height:100vh;align-items:center;justify-content:center;gap:16px;padding:30px 16px 36px}
+    .device{
+      flex:0 0 auto;width:412px;height:883px;box-sizing:content-box;padding:10px;
+      /* S22 Ultra is squared off — near-square corners, thin bezel */
+      border-radius:13px;background:linear-gradient(160deg,#2A3338 0%,var(--bezel) 42%,#0B1114 100%);
+      box-shadow:0 30px 70px rgba(9,18,24,.36),0 0 0 1px rgba(255,255,255,.07) inset;
+    }
+    .screen{border-radius:5px}
+    .stage__cap{display:block;margin:0;text-align:center;font-size:11px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:#6E8089}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="stage">
+ <div class="device">
+  <div class="screen">
+
+   <!-- ============ RACE ============ -->
+   <section class="view" id="vRace">
+     <header class="hdr">
+       <button class="hdr__btn" id="menuBtn" aria-label="Menu">☰</button>
+       <div class="status">
+         <div class="status__main"><b id="awayN">0</b>/<b id="totN">0</b> away · <b id="courseN">0</b> on course</div>
+         <div class="status__sub"><span class="dot" id="wlDot"></span><span id="wlText">screen lock idle</span></div>
+       </div>
+       <button class="hdr__btn" id="undoBtn" disabled>UNDO</button>
+     </header>
+     <div class="scroll" id="raceScroll">
+       <section class="band" id="bandNext"><h2 class="band__h">Next away</h2><div id="bodyNext"></div></section>
+       <section class="band" id="bandRun" hidden><h2 class="band__h">On course <b id="nRun">0</b></h2><div id="bodyRun"></div></section>
+       <section class="band" id="bandWait"><h2 class="band__h">On the line <b id="nWait">0</b></h2><div id="bodyWait"></div></section>
+       <section class="band" id="bandDone" hidden><h2 class="band__h">Finished <b id="nDone">0</b></h2><div id="bodyDone"></div></section>
+     </div>
+     <div class="srbar">
+       <div class="srout" id="srOut">
+         <div class="srout__val"><span id="srVal">--.-</span><i>SPM</i></div>
+         <div class="srout__sub"><span id="srTaps">0</span> taps · <span id="srInt">0</span>/5</div>
+       </div>
+       <button id="srPad"><span class="p1">STROKE RATE</span><span class="p2">tap on each catch</span></button>
+     </div>
+   </section>
+
+   <!-- ============ SETUP ============ -->
+   <section class="view" id="vSetup" hidden>
+     <header class="hdr">
+       <button class="hdr__btn" id="setupBack">‹ BACK</button>
+       <div class="hdr__title">Start list<small><span id="setupCount">0</span> crews · start order</small></div>
+       <button class="hdr__btn" id="unlockBtn" hidden>UNLOCK</button>
+     </header>
+     <div class="scroll" id="setupScroll">
+       <div class="banner" id="setupBanner" hidden></div>
+       <div id="setupList"></div>
+       <div class="setup__tools">
+         <button class="tool" id="addBtn">+ ADD CREW</button>
+         <button class="tool" id="pasteToggle">PASTE A LIST</button>
+       </div>
+       <div class="paste" id="pasteBox" hidden>
+         <textarea id="pasteArea" spellcheck="false" autocapitalize="characters" placeholder="NZL 1&#10;NZL 2&#10;AUS 1&#10;AUS 2"></textarea>
+         <div class="paste__hint">One crew per line, in start order. This replaces the whole list — crews already away are kept and stay at the top.</div>
+         <button class="tool" id="pasteApply">REPLACE LIST</button>
+       </div>
+     </div>
+     <div class="footbar">
+       <button class="bigbtn" id="toRace"><span class="b1">GO TO RACE</span><span class="b2" id="toRaceSub">ready</span></button>
+     </div>
+   </section>
+
+   <!-- ============ RESULTS ============ -->
+   <section class="view" id="vResults" hidden>
+     <header class="hdr">
+       <button class="hdr__btn" id="resBack">‹ BACK</button>
+       <div class="hdr__title">Results<small><span id="resCount">0</span> finished · by elapsed</small></div>
+     </header>
+     <div class="scroll" id="resScroll">
+       <div id="resList"></div>
+       <div class="csvout" id="csvOut" hidden><textarea id="csvText" readonly spellcheck="false"></textarea></div>
+     </div>
+     <div class="footbar">
+       <button class="bigbtn bigbtn--alt" id="shareBtn"><span class="b1">SEND CSV</span><span class="b2">share sheet</span></button>
+       <button class="bigbtn bigbtn--alt" id="copyBtn"><span class="b1">COPY</span><span class="b2">to clipboard</span></button>
+     </div>
+   </section>
+
+   <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+   <div class="scrim" id="scrim" hidden></div>
+   <div class="sheet" id="sheet" hidden>
+     <div class="sheet__grip"></div>
+     <button class="mitem" id="mResults"><span>Results<small>finishing order, and send the CSV</small></span></button>
+     <button class="mitem" id="mSetup"><span>Start list<small>add, rename and reorder crews</small></span></button>
+     <button class="mitem mitem--danger" id="mNew"><span id="mNewLabel">New race<small>clears all times, keeps the crews</small></span></button>
+   </div>
+
+  </div>
+ </div>
+ <p class="stage__cap">Galaxy S22 Ultra · 412 × 883 CSS px · 1:1</p>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ==================================================================
+   TIME BASE
+   One recorded epoch, captured once at load: a wall-clock anchor plus
+   the performance.now() reading at the same instant. Every timestamp is
+   performance.now() measured against that epoch, then expressed in
+   absolute ms so it survives a refresh, a crash or a flat battery.
+   ================================================================== */
+var T0_WALL = Date.now();
+var T0_PERF = performance.now();
+function nowAbs(){ return T0_WALL + (performance.now() - T0_PERF); }
+/* Pointer events carry a hardware timestamp on the performance timeline. */
+function evTime(e){
+  var t = e.timeStamp;
+  if (typeof t === "number" && t > 0 && Math.abs(t - performance.now()) < 4000) return T0_WALL + (t - T0_PERF);
+  return nowAbs();
+}
+
+/* ==================================================================
+   STORE — crews, plus an append-only event log. State rebuilds from
+   the log on every load.
+   ================================================================== */
+var K_CREWS = "ttt.crews.v1", K_LOG = "ttt.log.v1";
+
+function readLS(key, fallback){
+  try { var raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; }
+  catch(_){ return fallback; }
+}
+function writeLS(key, value){
+  try { localStorage.setItem(key, JSON.stringify(value)); return true; }
+  catch(_){ storageWarned(); return false; }
+}
+var warned = false;
+function storageWarned(){
+  if (warned) return;
+  warned = true;
+  toast("Can't save on this device — times are live only");
+}
+
+var DEFAULT_CODES = ["NZL 1","NZL 2","AUS 1","AUS 2","GBR 1","GBR 2","FRA 1","FRA 2","ITA 1","ITA 2",
+                     "ESP 1","ESP 2","GER 1","GER 2","USA 1","USA 2","NED 1","POR 1","TUR 1","GRE 1",
+                     "CHN 1","CHN 2","JPN 1","KOR 1","IRL 1","DEN 1","SUI 1","CZE 1","POL 1","RSA 1"];
+
+var crews = [];   // [{id, code, startTs, finishTs, el, rankEl, timeEl, pillEl}]
+var log   = [];   // append-only [{type, crewId, ts}]
+var seq   = 1;
+
+function loadStore(){
+  var saved = readLS(K_CREWS, null);
+  if (!saved || !saved.length){
+    saved = DEFAULT_CODES.map(function(code,i){ return { id:i+1, code:code }; });
+    writeLS(K_CREWS, saved);
+  }
+  crews = saved.map(function(c){
+    return { id:c.id, code:c.code, startTs:null, finishTs:null, el:null, rankEl:null, timeEl:null, pillEl:null };
+  });
+  seq = crews.reduce(function(m,c){ return Math.max(m, c.id); }, 0) + 1;
+  log = readLS(K_LOG, []) || [];
+  rebuild();
+}
+function saveCrews(){
+  writeLS(K_CREWS, crews.map(function(c){ return { id:c.id, code:c.code }; }));
+}
+function appendEvent(type, crewId, ts){
+  log.push({ type:type, crewId:crewId, ts:ts });
+  writeLS(K_LOG, log);
+}
+
+/* Replay the log. 'undo' cancels the most recent surviving start/finish. */
+var stack = [];
+function rebuild(){
+  crews.forEach(function(c){ c.startTs = null; c.finishTs = null; });
+  stack = [];
+  for (var i=0;i<log.length;i++){
+    var e = log[i];
+    if (e.type === "start" || e.type === "finish") stack.push(e);
+    else if (e.type === "undo") stack.pop();
+  }
+  for (var j=0;j<stack.length;j++){
+    var ev = stack[j], c = byId(ev.crewId);
+    if (!c) continue;
+    if (ev.type === "start") c.startTs = ev.ts; else c.finishTs = ev.ts;
+  }
+}
+function byId(id){
+  for (var i=0;i<crews.length;i++) if (crews[i].id === id) return crews[i];
+  return null;
+}
+function nextIndex(){
+  for (var i=0;i<crews.length;i++) if (crews[i].startTs === null) return i;
+  return crews.length;
+}
+function raceLive(){
+  for (var i=0;i<crews.length;i++) if (crews[i].startTs !== null) return true;
+  return false;
+}
+
+/* ==================================================================
+   FORMATTING
+   ================================================================== */
+function fmt(ms, dp){
+  if (!(ms > 0)) ms = 0;
+  var total = ms/1000, m = Math.floor(total/60), s = total - m*60;
+  return m + ":" + (s < 10 ? "0" : "") + s.toFixed(dp);
+}
+function pad(n, w){ n = String(n); while (n.length < w) n = "0" + n; return n; }
+function clockOf(abs){
+  var d = new Date(abs);
+  return pad(d.getHours(),2) + ":" + pad(d.getMinutes(),2) + ":" + pad(d.getSeconds(),2) + "." + pad(Math.round(d.getMilliseconds()/10),2);
+}
+
+/* ==================================================================
+   TAP HANDLING — press to arm, lift to fire.
+   The timestamp is taken at pointerdown, so the recorded time is the
+   moment of the press; the action commits on pointerup, and only if the
+   finger has not travelled. A scroll started on a crew card can't fire it.
+   ================================================================== */
+var $ = function(id){ return document.getElementById(id); };
+function tapButton(el, fn){
+  var ts=null, x=0, y=0, pid=null;
+  el.addEventListener("pointerdown", function(e){
+    if (el.disabled) return;
+    pid=e.pointerId; ts=evTime(e); x=e.clientX; y=e.clientY;
+    el.classList.add("press"); buzz(8);
+    if (el.setPointerCapture) { try{ el.setPointerCapture(e.pointerId); }catch(_){} }
+  });
+  el.addEventListener("pointerup", function(e){
+    if (pid !== e.pointerId || ts === null) return;
+    el.classList.remove("press");
+    var t=ts, dx=e.clientX-x, dy=e.clientY-y;
+    ts=null; pid=null;
+    if (Math.sqrt(dx*dx+dy*dy) > 14) return;
+    fn(t, e);
+  });
+  el.addEventListener("pointercancel", function(){ el.classList.remove("press"); ts=null; pid=null; });
+  el.addEventListener("click", function(e){ e.preventDefault(); });
+}
+function buzz(ms){ if (navigator.vibrate) { try{ navigator.vibrate(ms); }catch(_){} } }
+
+var LOCK = 450, lockT = 0;
+function lockActions(){
+  $("raceScroll").classList.add("locked");
+  clearTimeout(lockT);
+  lockT = setTimeout(function(){ $("raceScroll").classList.remove("locked"); }, LOCK);
+}
+
+/* ==================================================================
+   RACE — tap a crew to start it, tap it again to stop
+   ================================================================== */
+function tapCrew(c, ts){
+  if (c.finishTs !== null) return;
+  if (c.startTs === null){
+    if (crews[nextIndex()] !== c) return;        // only the next crew can start
+    c.startTs = ts;
+    appendEvent("start", c.id, ts);
+    stack.push({ type:"start", crewId:c.id, ts:ts });
+    wakeLockOn();
+    renderRace(); lockActions();
+    toast("Away — " + c.code);
+    buzz(28);
+  } else {
+    c.finishTs = ts;
+    appendEvent("finish", c.id, ts);
+    stack.push({ type:"finish", crewId:c.id, ts:ts });
+    renderRace(); lockActions();
+    toast(c.code + " — " + fmt(c.finishTs - c.startTs, 2) + "  ·  P" + placeOf(c));
+    buzz([18,40,18]);
+  }
+}
+function finishedSorted(){
+  return crews.filter(function(c){ return c.finishTs !== null; })
+              .sort(function(a,b){ return (a.finishTs-a.startTs) - (b.finishTs-b.startTs); });
+}
+function placeOf(c){ return finishedSorted().indexOf(c) + 1; }
+
+function undoLast(){
+  var last = stack[stack.length-1];
+  if (!last) return;
+  var c = byId(last.crewId);
+  appendEvent("undo", last.crewId, nowAbs());
+  stack.pop();
+  if (c){
+    if (last.type === "start"){ c.startTs = null; toast("Un-started " + c.code); }
+    else { c.finishTs = null; toast("Un-stopped " + c.code); }
+  }
+  renderRace(); lockActions();
+  buzz(40);
+}
+
+/* ---------- crew nodes ---------- */
+function buildCrewNodes(){
+  crews.forEach(function(c){
+    if (c.el) return;
+    var b = document.createElement("button");
+    b.className = "crew";
+    var rank = document.createElement("span"); rank.className = "crew__rank";
+    var code = document.createElement("span"); code.className = "crew__code";
+    var time = document.createElement("span"); time.className = "crew__time";
+    var pill = document.createElement("span"); pill.className = "crew__pill";
+    b.appendChild(rank); b.appendChild(code); b.appendChild(time); b.appendChild(pill);
+    c.el=b; c.rankEl=rank; c.timeEl=time; c.pillEl=pill; c.codeEl=code;
+    tapButton(b, function(ts){ tapCrew(c, ts); });
+  });
+}
+
+var running = [];
+function renderRace(){
+  buildCrewNodes();
+  /* Clear the bands first. Editing the start list can delete a crew, and its
+     card would otherwise be left stranded in whichever band it was last in. */
+  ["bodyNext","bodyRun","bodyWait","bodyDone"].forEach(function(id){ $(id).textContent = ""; });
+
+  var run=[], wait=[], done=[];
+  crews.forEach(function(c){
+    c.codeEl.textContent = c.code;
+    if (c.finishTs !== null) done.push(c);
+    else if (c.startTs !== null) run.push(c);
+    else wait.push(c);
+  });
+  run.sort(function(a,b){ return a.startTs - b.startTs; });
+  done.sort(function(a,b){ return (a.finishTs-a.startTs) - (b.finishTs-b.startTs); });
+
+  var ni = nextIndex(), nx = crews[ni] || null;
+  if (nx){
+    nx.el.className = "crew is-next"; nx.el.disabled = false;
+    nx.timeEl.textContent = "TAP TO START";
+    nx.pillEl.textContent = "START";
+    $("bodyNext").appendChild(nx.el);
+  } else {
+    var g = document.createElement("div");
+    g.className = "crew is-next ghost"; g.setAttribute("disabled","");
+    var gc = document.createElement("span"); gc.className="crew__code";
+    gc.textContent = crews.length ? "ALL CREWS AWAY" : "NO CREWS YET";
+    g.appendChild(gc);
+    $("bodyNext").appendChild(g);
+  }
+
+  run.forEach(function(c){
+    c.el.className = "crew is-run"; c.el.disabled = false;
+    c.pillEl.textContent = "STOP";
+    $("bodyRun").appendChild(c.el);
+  });
+  var q = 0;
+  wait.forEach(function(c){
+    if (c === nx) return;
+    q++;
+    c.el.className = "crew is-wait"; c.el.disabled = true;
+    c.rankEl.textContent = "+" + q;
+    $("bodyWait").appendChild(c.el);
+  });
+  done.forEach(function(c,i){
+    c.el.className = "crew is-done"; c.el.disabled = true;
+    c.rankEl.textContent = i + 1;
+    c.timeEl.textContent = fmt(c.finishTs - c.startTs, 2);
+    $("bodyDone").appendChild(c.el);
+  });
+
+  $("bandRun").hidden  = run.length === 0;
+  $("bandWait").hidden = q === 0;
+  $("bandDone").hidden = done.length === 0;
+  $("nRun").textContent = run.length;
+  $("nWait").textContent = q;
+  $("nDone").textContent = done.length;
+  $("awayN").textContent = ni;
+  $("totN").textContent = crews.length;
+  $("courseN").textContent = run.length;
+
+  $("undoBtn").disabled = stack.length === 0;
+  disarmUndo();
+  running = run;
+}
+
+/* ---------- the one rAF loop ---------- */
+function frame(){
+  var t = nowAbs();
+  for (var i=0;i<running.length;i++) running[i].timeEl.textContent = fmt(t - running[i].startTs, 1);
+  srIdleCheck(t);
+  requestAnimationFrame(frame);
+}
+
+/* ---------- toast ---------- */
+var toastT = 0;
+function toast(msg){
+  var el = $("toast");
+  el.textContent = msg; el.dataset.show = "1";
+  clearTimeout(toastT);
+  toastT = setTimeout(function(){ el.dataset.show = "0"; }, 2600);
+}
+
+/* ---------- undo: two-step ---------- */
+var armed=false, armT=0;
+function disarmUndo(){
+  armed=false; clearTimeout(armT);
+  var u=$("undoBtn"); u.dataset.armed="0"; u.textContent="UNDO";
+}
+tapButton($("undoBtn"), function(){
+  if (armed){ disarmUndo(); undoLast(); return; }
+  var last = stack[stack.length-1];
+  if (!last) return;
+  var c = byId(last.crewId);
+  armed = true;
+  var u = $("undoBtn");
+  u.dataset.armed = "1";
+  u.textContent = (last.type === "start" ? "UNDO START" : "UNDO STOP") + "\n" + (c ? c.code : "");
+  clearTimeout(armT);
+  armT = setTimeout(disarmUndo, 4000);
+});
+
+/* ==================================================================
+   WAKE LOCK
+   ================================================================== */
+var wl = null;
+function wlPaint(s, text){ $("wlDot").dataset.s = s; $("wlText").textContent = text; }
+function wakeLockOn(){
+  if (!("wakeLock" in navigator)){ wlPaint("no","screen lock unsupported"); return; }
+  if (wl) return;
+  navigator.wakeLock.request("screen").then(function(s){
+    wl = s; wlPaint("on","screen lock held");
+    s.addEventListener("release", function(){ wl = null; wlPaint("","screen lock released"); });
+  }).catch(function(err){
+    wlPaint("no","screen lock refused — " + (err && err.name ? err.name : "error"));
+  });
+}
+document.addEventListener("visibilitychange", function(){
+  if (document.visibilityState === "visible" && running.length) wakeLockOn();
+});
+
+/* ==================================================================
+   STROKE RATE
+   ================================================================== */
+var MIN_GAP=400, IDLE=10000, MAX_TAPS=6;   // 6 taps = 5 intervals
+var taps=[], rejectT=0;
+function srRender(){
+  var n = taps.length;
+  $("srTaps").textContent = n;
+  $("srInt").textContent = Math.max(0, n-1);
+  if (n < 2){ $("srVal").textContent = "--.-"; return; }
+  var sum = 0;
+  for (var i=1;i<n;i++) sum += taps[i] - taps[i-1];
+  $("srVal").textContent = (60000 / (sum/(n-1))).toFixed(1);
+}
+function srTap(ts){
+  var n = taps.length;
+  if (n){
+    var dt = ts - taps[n-1];
+    if (dt < MIN_GAP){
+      $("srOut").dataset.reject = "1";
+      clearTimeout(rejectT);
+      rejectT = setTimeout(function(){ $("srOut").dataset.reject = "0"; }, 450);
+      return;
+    }
+    if (dt > IDLE) taps.length = 0;
+  }
+  taps.push(ts);
+  if (taps.length > MAX_TAPS) taps.shift();
+  srRender(); buzz(6);
+}
+function srIdleCheck(t){
+  if (taps.length && t - taps[taps.length-1] > IDLE){ taps.length = 0; srRender(); }
+}
+$("srPad").addEventListener("pointerdown", function(e){
+  e.preventDefault(); $("srPad").classList.add("press"); srTap(evTime(e));
+});
+["pointerup","pointercancel","pointerleave"].forEach(function(ev){
+  $("srPad").addEventListener(ev, function(){ $("srPad").classList.remove("press"); });
+});
+
+/* ==================================================================
+   VIEWS
+   ================================================================== */
+function show(which){
+  $("vRace").hidden    = which !== "race";
+  $("vSetup").hidden   = which !== "setup";
+  $("vResults").hidden = which !== "results";
+  closeSheet();
+  if (which === "setup") renderSetup();
+  if (which === "results") renderResults();
+}
+
+/* ---------- menu sheet ---------- */
+function openSheet(){ $("scrim").hidden = false; $("sheet").hidden = false; disarmNew(); }
+function closeSheet(){ $("scrim").hidden = true; $("sheet").hidden = true; disarmNew(); }
+tapButton($("menuBtn"), openSheet);
+$("scrim").addEventListener("pointerdown", closeSheet);
+tapButton($("mResults"), function(){ show("results"); });
+tapButton($("mSetup"),   function(){ show("setup"); });
+
+var newArmed=false, newT=0;
+function disarmNew(){
+  newArmed=false; clearTimeout(newT);
+  $("mNew").dataset.armed="0";
+  $("mNewLabel").innerHTML = "New race<small>clears all times, keeps the crews</small>";
+}
+tapButton($("mNew"), function(){
+  if (newArmed){
+    log = []; writeLS(K_LOG, log);
+    rebuild(); renderRace(); show("race");
+    toast("New race — all times cleared");
+    return;
+  }
+  newArmed = true;
+  $("mNew").dataset.armed = "1";
+  $("mNewLabel").innerHTML = "Tap again to clear<small>" + finishedSorted().length + " finished times will be lost — send the CSV first</small>";
+  clearTimeout(newT);
+  newT = setTimeout(disarmNew, 5000);
+});
+
+/* ==================================================================
+   SETUP
+   Fully editable before the first crew goes away. Once a race is live it
+   opens read-only; UNLOCK then allows editing only the crews that have
+   not started, so nothing already timed can be disturbed.
+   ================================================================== */
+var setupUnlocked = false;
+
+function renderSetup(){
+  var live = raceLive();
+  var editable = !live || setupUnlocked;
+
+  $("setupCount").textContent = crews.length;
+  $("unlockBtn").hidden = !live;
+  $("unlockBtn").textContent = setupUnlocked ? "LOCK" : "UNLOCK";
+
+  var banner = $("setupBanner");
+  if (live){
+    banner.hidden = false;
+    banner.innerHTML = setupUnlocked
+      ? "<b>Unlocked</b>You can add, rename and reorder the crews that have not gone away yet. Crews already timed are fixed."
+      : "<b>Race in progress</b>The start list is locked. Tap UNLOCK to change the crews that have not gone away yet.";
+  } else {
+    banner.hidden = true;
+  }
+
+  var list = $("setupList");
+  list.textContent = "";
+  crews.forEach(function(c, i){
+    var started = c.startTs !== null;
+    var row = document.createElement("div");
+    row.className = "srow";
+
+    var n = document.createElement("span"); n.className="srow__n"; n.textContent = i+1;
+
+    var inp = document.createElement("input");
+    inp.className = "srow__code"; inp.value = c.code; inp.maxLength = 8;
+    inp.setAttribute("autocapitalize","characters");
+    inp.setAttribute("spellcheck","false");
+    inp.disabled = started || !editable;
+    inp.addEventListener("change", function(){
+      var v = inp.value.trim().toUpperCase();
+      if (!v){ inp.value = c.code; return; }
+      c.code = v; inp.value = v; saveCrews(); renderRace();
+    });
+
+    row.appendChild(n); row.appendChild(inp);
+
+    if (started){
+      var lk = document.createElement("span");
+      lk.className = "srow__lock";
+      lk.textContent = c.finishTs !== null ? "finished" : "away";
+      row.appendChild(lk);
+    } else {
+      row.appendChild(mkBtn("▲", !editable || i === 0 || crews[i-1].startTs !== null, function(){ move(i,-1); }));
+      row.appendChild(mkBtn("▼", !editable || i === crews.length-1, function(){ move(i,1); }));
+      row.appendChild(mkBtn("✕", !editable, function(){ removeAt(i); }, "sbtn--x"));
+    }
+    list.appendChild(row);
+  });
+
+  $("addBtn").disabled = !editable;
+  $("pasteToggle").disabled = !editable;
+  $("pasteApply").disabled = !editable;
+  $("toRaceSub").textContent = crews.length
+    ? (live ? "race in progress" : "not started yet")
+    : "add some crews first";
+  $("toRace").disabled = crews.length === 0;
+}
+
+function mkBtn(label, disabled, fn, extra){
+  var b = document.createElement("button");
+  b.className = "sbtn" + (extra ? " " + extra : "");
+  b.textContent = label;
+  b.disabled = !!disabled;
+  b.addEventListener("click", function(e){ e.preventDefault(); if (!b.disabled) fn(); });
+  return b;
+}
+function move(i, d){
+  var j = i + d;
+  if (j < 0 || j >= crews.length) return;
+  if (crews[j].startTs !== null) return;    // never reorder past a timed crew
+  var t = crews[i]; crews[i] = crews[j]; crews[j] = t;
+  saveCrews(); renderSetup(); renderRace(); buzz(8);
+}
+function removeAt(i){
+  if (crews[i].startTs !== null) return;
+  crews.splice(i,1);
+  saveCrews(); renderSetup(); renderRace(); buzz(12);
+}
+tapButton($("addBtn"), function(){
+  crews.push({ id:seq++, code:"NZL " + (crews.length+1), startTs:null, finishTs:null,
+               el:null, rankEl:null, timeEl:null, pillEl:null, codeEl:null });
+  saveCrews(); renderSetup(); renderRace();
+  var inputs = $("setupList").querySelectorAll("input:not(:disabled)");
+  if (inputs.length){ var last = inputs[inputs.length-1]; last.focus(); last.select(); }
+});
+tapButton($("pasteToggle"), function(){
+  var box = $("pasteBox");
+  box.hidden = !box.hidden;
+  if (!box.hidden){
+    $("pasteArea").value = crews.filter(function(c){ return c.startTs === null; })
+                               .map(function(c){ return c.code; }).join("\n");
+    $("pasteArea").focus();
+  }
+});
+tapButton($("pasteApply"), function(){
+  var lines = $("pasteArea").value.split(/\r?\n/)
+      .map(function(s){ return s.trim().toUpperCase().slice(0,8); })
+      .filter(function(s){ return s.length; });
+  if (!lines.length){ toast("Nothing to add"); return; }
+  var kept = crews.filter(function(c){ return c.startTs !== null; });
+  crews = kept.concat(lines.map(function(code){
+    return { id:seq++, code:code, startTs:null, finishTs:null,
+             el:null, rankEl:null, timeEl:null, pillEl:null, codeEl:null };
+  }));
+  saveCrews(); $("pasteBox").hidden = true;
+  renderSetup(); renderRace();
+  toast(lines.length + " crews on the start list");
+});
+tapButton($("unlockBtn"), function(){ setupUnlocked = !setupUnlocked; renderSetup(); });
+tapButton($("setupBack"), function(){ show("race"); });
+tapButton($("toRace"),    function(){ show("race"); });
+
+/* ==================================================================
+   RESULTS
+   ================================================================== */
+function renderResults(){
+  var done = finishedSorted();
+  var open = crews.filter(function(c){ return c.startTs !== null && c.finishTs === null; })
+                  .sort(function(a,b){ return a.startTs - b.startTs; });
+  var dns  = crews.filter(function(c){ return c.startTs === null; });
+
+  $("resCount").textContent = done.length;
+  var list = $("resList");
+  list.textContent = "";
+
+  if (!done.length && !open.length){
+    var e = document.createElement("div");
+    e.className = "empty";
+    e.textContent = "No times yet. Send crews away from the race screen and they will appear here in finishing order.";
+    list.appendChild(e);
+  }
+
+  done.forEach(function(c,i){ list.appendChild(resRow(String(i+1), c, fmt(c.finishTs-c.startTs,2), clockOf(c.startTs)+" → "+clockOf(c.finishTs), "")); });
+  open.forEach(function(c){ list.appendChild(resRow("•", c, "on course", "away at "+clockOf(c.startTs), "res--open")); });
+  dns.forEach(function(c){ list.appendChild(resRow("–", c, "not started", "", "res--dns")); });
+
+  $("csvOut").hidden = true;
+}
+function resRow(place, c, elapsed, clock, cls){
+  var r = document.createElement("div");
+  r.className = "res" + (cls ? " " + cls : "");
+  var p = document.createElement("div"); p.className="res__p"; p.textContent = place;
+  var b = document.createElement("div"); b.className="res__b";
+  var code = document.createElement("div"); code.className="res__code"; code.textContent = c.code;
+  b.appendChild(code);
+  if (clock){ var k = document.createElement("div"); k.className="res__clock"; k.textContent = clock; b.appendChild(k); }
+  var e = document.createElement("div"); e.className="res__e"; e.textContent = elapsed;
+  r.appendChild(p); r.appendChild(b); r.appendChild(e);
+  return r;
+}
+
+function buildCsv(){
+  var rows = [["place","code","start","finish","elapsed","elapsed_seconds"]];
+  finishedSorted().forEach(function(c,i){
+    rows.push([ i+1, c.code, clockOf(c.startTs), clockOf(c.finishTs),
+                fmt(c.finishTs-c.startTs,2), ((c.finishTs-c.startTs)/1000).toFixed(2) ]);
+  });
+  crews.filter(function(c){ return c.startTs !== null && c.finishTs === null; })
+       .forEach(function(c){ rows.push(["", c.code, clockOf(c.startTs), "", "ON COURSE", ""]); });
+  crews.filter(function(c){ return c.startTs === null; })
+       .forEach(function(c){ rows.push(["", c.code, "", "", "DNS", ""]); });
+  return rows.map(function(r){
+    return r.map(function(v){
+      v = String(v);
+      return /[",\n]/.test(v) ? '"' + v.replace(/"/g,'""') + '"' : v;
+    }).join(",");
+  }).join("\r\n");
+}
+var inFrame = false;
+try { inFrame = window.top !== window.self; } catch(_){ inFrame = true; }
+
+function csvName(){
+  var d = new Date();
+  return "time-trial-" + d.getFullYear() + pad(d.getMonth()+1,2) + pad(d.getDate(),2)
+       + "-" + pad(d.getHours(),2) + pad(d.getMinutes(),2) + ".csv";
+}
+
+tapButton($("shareBtn"), function(){
+  var csv = buildCsv(), name = csvName();
+  try {
+    var file = new File([csv], name, { type:"text/csv" });
+    if (navigator.canShare && navigator.canShare({ files:[file] })){
+      navigator.share({ files:[file], title:"Time trial results" })
+        .catch(function(){ /* user dismissed the share sheet */ });
+      return;
+    }
+  } catch(_){}
+  /* A preview frame silently swallows file saves, so don't pretend one worked —
+     fall straight through to the on-screen copy instead. */
+  if (inFrame){ showCsvText(csv); return; }
+  try {
+    var url = URL.createObjectURL(new Blob([csv], { type:"text/csv" }));
+    var a = document.createElement("a");
+    a.href = url; a.download = name; a.rel = "noopener";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+    toast("Saved " + name);
+    return;
+  } catch(_){}
+  showCsvText(csv);
+});
+tapButton($("copyBtn"), function(){
+  var csv = buildCsv();
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(csv)
+      .then(function(){ toast("Results copied"); })
+      .catch(function(){ showCsvText(csv); });
+  } else showCsvText(csv);
+});
+function showCsvText(csv){
+  $("csvText").value = csv;
+  $("csvOut").hidden = false;
+  $("csvText").focus(); $("csvText").select();
+  toast("Select and copy the text below");
+}
+tapButton($("resBack"), function(){ show("race"); });
+
+/* ==================================================================
+   SERVICE WORKER — present when the app is served from its own address.
+   Absent inside a preview frame, which is fine: everything else still works.
+   ================================================================== */
+if ("serviceWorker" in navigator && location.protocol === "https:"){
+  window.addEventListener("load", function(){
+    navigator.serviceWorker.register("./sw.js").catch(function(){ /* not installable here */ });
+  });
+}
+
+/* ==================================================================
+   GO
+   ================================================================== */
+loadStore();
+renderRace();
+if (raceLive()) wakeLockOn();
+show(crews.length ? "race" : "setup");
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
