@@ -1,6 +1,6 @@
 /* Beach Sprint TT Timer — offline shell.
-   Bump CACHE whenever index.html changes, or phones keep serving the old one. */
-var CACHE = "ttt-v2";
+   Bump CACHE whenever the shell changes. */
+var CACHE = "ttt-v3";
 var ASSETS = [
   "./",
   "./index.html",
@@ -30,14 +30,49 @@ self.addEventListener("activate", function(e){
   );
 });
 
-/* Cache first. A timer at a riverbank has no signal, and a slow network
-   must never delay the screen — so the network is only ever a fallback,
-   and a fresh copy is tucked away for next time. */
+/* Fetch with a deadline. At the water there may be one bar of signal, and a
+   page that hangs waiting for the network is worse than a slightly old one. */
+function fetchWithin(req, ms){
+  return new Promise(function(resolve, reject){
+    var settled = false;
+    var timer = setTimeout(function(){
+      if (!settled){ settled = true; reject(new Error("too slow")); }
+    }, ms);
+    fetch(req).then(
+      function(res){ if (!settled){ settled = true; clearTimeout(timer); resolve(res); } },
+      function(err){ if (!settled){ settled = true; clearTimeout(timer); reject(err); } }
+    );
+  });
+}
+
 self.addEventListener("fetch", function(e){
   var req = e.request;
   if (req.method !== "GET") return;
   if (new URL(req.url).origin !== self.location.origin) return;
 
+  /* The page itself: try the network first, but only briefly, then fall back
+     to the saved copy. Cache-first here meant every update landed a refresh
+     late, because the saved page was served before the new one was even
+     fetched. */
+  if (req.mode === "navigate"){
+    e.respondWith(
+      fetchWithin(req, 2500).then(function(res){
+        if (res && res.ok){
+          var copy = res.clone();
+          caches.open(CACHE).then(function(c){ c.put("./index.html", copy); });
+        }
+        return res;
+      }).catch(function(){
+        return caches.match("./index.html").then(function(hit){
+          return hit || caches.match("./");
+        });
+      })
+    );
+    return;
+  }
+
+  /* Everything else is versioned by the cache name, so the saved copy wins
+     and the screen never waits on the network. */
   e.respondWith(
     caches.match(req).then(function(hit){
       if (hit) return hit;
@@ -48,8 +83,6 @@ self.addEventListener("fetch", function(e){
         }
         return res;
       }).catch(function(){
-        /* offline and not cached: navigations still get the app shell */
-        if (req.mode === "navigate") return caches.match("./index.html");
         throw new Error("offline");
       });
     })
