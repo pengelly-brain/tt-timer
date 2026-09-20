@@ -465,28 +465,49 @@ function byId(id){
   for (var i=0;i<crews.length;i++) if (crews[i].id === id) return crews[i];
   return null;
 }
-function nextIndex(){
-  for (var i=0;i<crews.length;i++) if (crews[i].startTs === null) return i;
-  return crews.length;
-}
-
 /* Which crew is on the line. Normally the first one in the start list that
    has not gone away, but any waiting crew can be brought forward — late
    changes and withdrawals happen, and the list order stops being the truth.
    Deliberately not in the event log: it is a choice about what happens next,
    not a time, and a reload can safely fall back to list order. */
 var onDeck = null;
+
+function lastStartedIndex(){
+  var last = -1;
+  for (var i=0;i<crews.length;i++) if (crews[i].startTs !== null) last = i;
+  return last;
+}
+
+/* Carry on down the start list from wherever the last crew to go away sits —
+   NOT from the first crew that has not started. Otherwise a crew that is
+   skipped gets offered again every single time, and one withdrawal means
+   every remaining start has to be picked by hand.
+   Once the bottom of the list is reached, come back for anyone passed over,
+   so a late crew is still offered rather than silently lost.
+   Derived from the crews themselves, so it survives a reload and an undo
+   without anything extra in the event log. */
+function naturalNext(){
+  var from = lastStartedIndex() + 1, i;
+  for (i = from; i < crews.length; i++) if (crews[i].startTs === null) return crews[i];
+  for (i = 0; i < from && i < crews.length; i++) if (crews[i].startTs === null) return crews[i];
+  return null;
+}
+
 function nextCrew(){
   if (onDeck !== null){
     var c = byId(onDeck);
     if (c && c.startTs === null) return c;
     onDeck = null;                       // it started, or it was removed
   }
-  return crews[nextIndex()] || null;
+  return naturalNext();
 }
 function outOfOrder(){
   var nx = nextCrew();
-  return !!nx && nx !== crews[nextIndex()];
+  return !!nx && nx !== naturalNext();
+}
+/* True when the list has been worked through and this crew was passed over. */
+function pickedUpLater(c){
+  return !!c && crews.indexOf(c) < lastStartedIndex();
 }
 function raceLive(){
   for (var i=0;i<crews.length;i++) if (crews[i].startTs !== null) return true;
@@ -630,7 +651,9 @@ function renderRace(){
   done.sort(function(a,b){ return (a.finishTs-a.startTs) - (b.finishTs-b.startTs); });
 
   var nx = nextCrew();
-  $("hNext").innerHTML = outOfOrder() ? 'Next away <em>&middot; out of order</em>' : "Next away";
+  $("hNext").innerHTML =
+      outOfOrder()      ? 'Next away <em>&middot; out of order</em>' :
+      pickedUpLater(nx) ? 'Next away <em>&middot; skipped earlier</em>' : "Next away";
   if (nx){
     nx.el.className = "crew is-next"; nx.el.disabled = false;
     nx.timeEl.textContent = "TAP TO START";
