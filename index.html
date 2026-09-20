@@ -98,6 +98,8 @@
   .band[hidden]{display:none}
   .band__h{margin:0;padding:15px 14px 7px;font-size:10.5px;font-weight:800;letter-spacing:.17em;text-transform:uppercase;color:var(--ink-faint)}
   .band__h b{font-family:var(--mono);font-weight:800;opacity:.8}
+  .band__hint{display:block;margin-top:5px;font-size:11px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--ink-faint)}
+  .band__h em{font-style:normal;color:var(--stop)}
 
   /* ---------------- crew node, four race states ---------------- */
   .crew{display:flex;align-items:center;width:100%;box-sizing:border-box}
@@ -132,9 +134,15 @@
   .crew.is-run.press .crew__pill{transform:translateY(2px);box-shadow:0 0 0 var(--stop-deep)}
 
   .crew.is-wait{height:46px;padding:0 16px;gap:12px;border-bottom:1px solid var(--line-soft)}
-  .crew.is-wait .crew__rank{font-size:12px;min-width:26px}
+  .crew.is-wait .crew__rank{
+    min-width:24px;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;
+    background:#E3EAEE;color:var(--ink-faint);font-size:11.5px;
+  }
   .crew.is-wait .crew__code{font-size:16px;font-weight:700;color:var(--ink-dim)}
-  .crew.is-wait .crew__time,.crew.is-wait .crew__pill{display:none}
+  .crew.is-wait .crew__time{font-size:10.5px;font-weight:800;letter-spacing:.11em;color:var(--go);font-family:var(--ui);opacity:0}
+  .crew.is-wait .crew__pill{display:none}
+  .crew.is-wait.press{background:#E1F0E7}
+  .crew.is-wait.press .crew__time{opacity:1}
 
   .crew.is-done{height:48px;padding:0 16px;gap:12px;border-bottom:1px solid var(--line-soft)}
   .crew.is-done .crew__rank{min-width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--ink);color:var(--card);font-size:12.5px}
@@ -296,9 +304,9 @@
        <button class="hdr__btn" id="undoBtn" disabled>UNDO</button>
      </header>
      <div class="scroll" id="raceScroll">
-       <section class="band" id="bandNext"><h2 class="band__h">Next away</h2><div id="bodyNext"></div></section>
+       <section class="band" id="bandNext"><h2 class="band__h" id="hNext">Next away</h2><div id="bodyNext"></div></section>
        <section class="band" id="bandRun" hidden><h2 class="band__h">On course <b id="nRun">0</b></h2><div id="bodyRun"></div></section>
-       <section class="band" id="bandWait"><h2 class="band__h">On the line <b id="nWait">0</b></h2><div id="bodyWait"></div></section>
+       <section class="band" id="bandWait"><h2 class="band__h">On the line <b id="nWait">0</b><span class="band__hint">Tap any crew to bring it to the line — order doesn't matter</span></h2><div id="bodyWait"></div></section>
        <section class="band" id="bandDone" hidden><h2 class="band__h">Finished <b id="nDone">0</b></h2><div id="bodyDone"></div></section>
      </div>
      <div class="srbar">
@@ -461,6 +469,25 @@ function nextIndex(){
   for (var i=0;i<crews.length;i++) if (crews[i].startTs === null) return i;
   return crews.length;
 }
+
+/* Which crew is on the line. Normally the first one in the start list that
+   has not gone away, but any waiting crew can be brought forward — late
+   changes and withdrawals happen, and the list order stops being the truth.
+   Deliberately not in the event log: it is a choice about what happens next,
+   not a time, and a reload can safely fall back to list order. */
+var onDeck = null;
+function nextCrew(){
+  if (onDeck !== null){
+    var c = byId(onDeck);
+    if (c && c.startTs === null) return c;
+    onDeck = null;                       // it started, or it was removed
+  }
+  return crews[nextIndex()] || null;
+}
+function outOfOrder(){
+  var nx = nextCrew();
+  return !!nx && nx !== crews[nextIndex()];
+}
 function raceLive(){
   for (var i=0;i<crews.length;i++) if (crews[i].startTs !== null) return true;
   return false;
@@ -521,10 +548,21 @@ function lockActions(){
 function tapCrew(c, ts){
   if (c.finishTs !== null) return;
   if (c.startTs === null){
-    if (crews[nextIndex()] !== c) return;        // only the next crew can start
+    /* A waiting crew that is not on the line comes to the line instead of
+       starting. Two taps to start out of order, and the big card stays the
+       only thing that ever starts a clock — so a stray tap in the queue
+       costs nothing. */
+    if (c !== nextCrew()){
+      onDeck = c.id;
+      renderRace();
+      toast(c.code + " to the line");
+      buzz(12);
+      return;
+    }
     c.startTs = ts;
     appendEvent("start", c.id, ts);
     stack.push({ type:"start", crewId:c.id, ts:ts });
+    onDeck = null;                               // back to list order
     wakeLockOn();
     renderRace(); lockActions();
     toast("Away — " + c.code);
@@ -591,7 +629,8 @@ function renderRace(){
   run.sort(function(a,b){ return a.startTs - b.startTs; });
   done.sort(function(a,b){ return (a.finishTs-a.startTs) - (b.finishTs-b.startTs); });
 
-  var ni = nextIndex(), nx = crews[ni] || null;
+  var nx = nextCrew();
+  $("hNext").innerHTML = outOfOrder() ? 'Next away <em>&middot; out of order</em>' : "Next away";
   if (nx){
     nx.el.className = "crew is-next"; nx.el.disabled = false;
     nx.timeEl.textContent = "TAP TO START";
@@ -615,8 +654,9 @@ function renderRace(){
   wait.forEach(function(c){
     if (c === nx) return;
     q++;
-    c.el.className = "crew is-wait"; c.el.disabled = true;
-    c.rankEl.textContent = "+" + q;
+    c.el.className = "crew is-wait"; c.el.disabled = false;
+    c.rankEl.textContent = crews.indexOf(c) + 1;   // place in the start list
+    c.timeEl.textContent = "TO THE LINE";
     $("bodyWait").appendChild(c.el);
   });
   done.forEach(function(c,i){
@@ -632,7 +672,9 @@ function renderRace(){
   $("nRun").textContent = run.length;
   $("nWait").textContent = q;
   $("nDone").textContent = done.length;
-  $("awayN").textContent = ni;
+  /* Count the crews that have actually gone, not the list position - once
+     starts go out of order those are no longer the same number. */
+  $("awayN").textContent = run.length + done.length;
   $("totN").textContent = crews.length;
   $("courseN").textContent = run.length;
 

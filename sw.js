@@ -1,6 +1,6 @@
 /* Beach Sprint TT Timer — offline shell.
    Bump CACHE whenever index.html changes, or phones keep serving the old one. */
-var CACHE = "ttt-v1";
+var CACHE = "ttt-v2";
 var ASSETS = [
   "./",
   "./index.html",
