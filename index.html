@@ -299,7 +299,7 @@
        <button class="hdr__btn" id="menuBtn" aria-label="Menu">☰</button>
        <div class="status">
          <div class="status__main"><b id="awayN">0</b>/<b id="totN">0</b> away · <b id="courseN">0</b> on course</div>
-         <div class="status__sub"><span class="dot" id="wlDot"></span><span id="wlText">screen lock idle</span></div>
+         <div class="status__sub"><span class="dot" id="wlDot"></span><span id="wlText">screen sleeps until you tap</span></div>
        </div>
        <button class="hdr__btn" id="undoBtn" disabled>UNDO</button>
      </header>
@@ -541,6 +541,11 @@ function tapButton(el, fn){
     if (el.disabled) return;
     pid=e.pointerId; ts=evTime(e); x=e.clientX; y=e.clientY;
     el.classList.add("press"); buzz(8);
+    /* Claim the screen on the very first tap, not on the first start. You are
+       stood at the water well before the first crew goes, and the screen
+       going dark while you wait is the same problem. Needs a real gesture,
+       which this is. */
+    wakeLockOn();
     if (el.setPointerCapture) { try{ el.setPointerCapture(e.pointerId); }catch(_){} }
   });
   el.addEventListener("pointerup", function(e){
@@ -748,13 +753,13 @@ tapButton($("undoBtn"), function(){
 var wl = null;
 function wlPaint(s, text){ $("wlDot").dataset.s = s; $("wlText").textContent = text; }
 function wakeLockOn(){
-  if (!("wakeLock" in navigator)){ wlPaint("no","screen lock unsupported"); return; }
+  if (!("wakeLock" in navigator)){ wlPaint("no","phone won't keep the screen on"); return; }
   if (wl) return;
   navigator.wakeLock.request("screen").then(function(s){
-    wl = s; wlPaint("on","screen lock held");
-    s.addEventListener("release", function(){ wl = null; wlPaint("","screen lock released"); });
-  }).catch(function(err){
-    wlPaint("no","screen lock refused — " + (err && err.name ? err.name : "error"));
+    wl = s; wlPaint("on","screen staying on");
+    s.addEventListener("release", function(){ wl = null; wlPaint("","screen may sleep"); });
+  }).catch(function(){
+    wlPaint("no","screen may sleep — blocked");
   });
 }
 document.addEventListener("visibilitychange", function(){
